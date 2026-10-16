@@ -1,0 +1,75 @@
+# Self-hosted, $0-licence production stack.   docker compose up -d --build
+#   scale workers:  docker compose up -d --scale worker=3
+# Secrets: nothing sensitive is written here. Credentials come from ./secrets/*.txt files mounted as
+# Docker secrets (chmod 600), and the app reads them through file:// references -- see docs/DEPLOYMENT.md.
+
+x-app: &app
+  build: .
+  restart: unless-stopped
+  depends_on:
+    migrate: { condition: service_completed_successfully }
+  environment: &app-env
+    ENVIRONMENT: production
+    DATABASE_URL: file:///run/secrets/database_url
+    APP_DATABASE_URL: file:///run/secrets/app_database_url
+    SECRETS_MASTER_KEY_FILE: /run/secrets/master_key
+    ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?set ALLOWED_ORIGINS to your frontend origin}
+    TRUSTED_HOSTS: ${TRUSTED_HOSTS:?set TRUSTED_HOSTS to your API hostname}
+    TRUST_PROXY_HEADERS: "true"          # only because the API sits behind your reverse proxy
+    LOG_FORMAT: json
+  env_file: [.env]                       # non-secret settings and secret:// references
+  secrets: [database_url, app_database_url, master_key]
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_DB: sparserest
+    secrets: [postgres_password]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U postgres -d sparserest"], interval: 5s, retries: 20 }
+    # no published ports: only the other containers can reach the database
+
+  migrate:
+    <<: *app
+    restart: "no"
+    depends_on: { db: { condition: service_healthy } }
+    command: ["sh", "-c", "alembic upgrade head && python -m scripts.seed"]
+
+  api:
+    <<: *app
+    ports: ["127.0.0.1:8000:8000"]       # bind to localhost; put TLS termination (Caddy/nginx) in front
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "scripts.run_worker"]
+    healthcheck:
+      disable: true
+    stop_grace_period: 60s               # SIGTERM -> finish the task in hand, then exit
+
+  inbound:
+    <<: *app
+    command: ["python", "-m", "scripts.run_inbound"]
+    stop_grace_period: 30s
+
+  web:
+    build: { context: apps/web, args: { NEXT_PUBLIC_API_URL: "${PUBLIC_API_URL:?set PUBLIC_API_URL}" } }
+    restart: unless-stopped
+    ports: ["127.0.0.1:3000:3000"]
+    read_only: true
+    tmpfs: [/tmp, /web/.next/cache]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+volumes: { pgdata: {} }
+secrets:
+  postgres_password: { file: ./secrets/postgres_password.txt }
+  database_url:      { file: ./secrets/database_url.txt }
+  app_database_url:  { file: ./secrets/app_database_url.txt }
+  master_key:        { file: ./secrets/master_key.txt }

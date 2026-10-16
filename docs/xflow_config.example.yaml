@@ -1,0 +1,60 @@
+# XFlow acquisition configuration.  Copy to xflow_config.yaml, replace every REPLACE_ME, then:
+#     python -m scripts.configure_product xflow xflow_config.yaml --dry-run     # validate
+#     python -m scripts.configure_product xflow xflow_config.yaml               # apply (the old config is kept in history)
+# The system REFUSES to apply a file that still contains REPLACE_ME, and refuses to start autopilot without a complete config.
+#
+# Only YOU can fill this in: who XFlow is for, and what it does, is your decision -- not something the agents may guess.
+
+icp:
+  # ---- WHO to look for (free discovery uses OpenStreetMap) ------------------------------------------------------------
+  # Easiest: `industries` from the built-in list: hvac, plumbing, roofing, landscaping, pest_control, electrician, painting.
+  # Anything else: give raw OpenStreetMap tags instead, e.g.  osm_tags: [[office, estate_agent], [craft, carpenter]]
+  # (browse tags at https://taginfo.openstreetmap.org). Coverage is best for local trades and shops; it is thin for
+  # businesses OSM doesn't map -- check a sample before trusting a category.
+  industries: [REPLACE_ME]
+  # ---- WHERE: one place, or several (the autopilot rotates through them when one runs dry) ----------------------------------
+  geography: REPLACE_ME            # e.g. "Austin, Texas"
+  geographies: []                  # e.g. ["Dallas, Texas", "Houston, Texas"]
+  buyer_titles: [Owner, Founder, President, "General Manager"]    # who you want to reach; a match raises the fit score
+
+  # ---- THE HARD GATE: a prospect is contacted ONLY if it passes every hard rule and meets min_score. No quota, ever. ------------
+  qualification:
+    min_score: 0.6                 # 0-1. Raise it to be pickier. It is never lowered automatically.
+    require_email: true
+    require_mx: true               # the email domain must be able to receive mail (DNS-checked)
+    require_website: true          # the business needs a real, readable website we can research
+    allow_role_emails: true        # info@/contact@ addresses: allowed but score lower. Set false to require named mailboxes.
+    allow_free_mail: false         # gmail/yahoo/etc. rejected -- not a business mailbox
+    require_personalization_hook: true     # must find something specific and TRUE on their site to reference
+    required_keywords_any: [REPLACE_ME]    # at least one must appear on their site, e.g. [plumb, drain, "water heater"]
+    exclude_keywords: [franchise, "national brand"]   # any of these on their site disqualifies them
+    blocked_domains: []
+    # Optional, used only when ANTHROPIC_API_KEY is set: plain-English ideal-customer test an LLM must answer "yes" to.
+    # llm_fit_prompt: "Independent business with 1-25 staff that takes inbound phone leads. Not a national chain."
+
+positioning:
+  product_name: XFlow
+  one_liner: REPLACE_ME            # ONE honest sentence: what XFlow does for them, in their terms (<= ~25 words)
+  call_to_action: "Worth a quick 15-minute call this week?"
+  website_url: REPLACE_ME          # the ONLY domain emails may link to (leave links out entirely if you prefer)
+  pain_points: []                  # optional: up to 3 true problems XFlow solves (the LLM may reference these)
+  proof_points: []                 # optional: ONLY claims you can substantiate (the LLM may cite these -- nothing else)
+
+sales:
+  physical_address: REPLACE_ME     # REQUIRED by CAN-SPAM in every email, e.g. "123 Main St, Suite 4, Austin, TX 78701"
+  sender_name: REPLACE_ME          # who the email is truthfully from, e.g. "Sam Lee, XFlow"
+  disallowed_claims: ["guarantee", "free trial"]    # copy containing any of these is rejected before it can be sent
+
+# YOUR GOAL -- required (autopilot will not start without one). The clock starts when you enable autopilot, and only
+# customers recorded AFTER that count. Reaching it (or the deadline) stops new outreach.
+goal:
+  customers: REPLACE_ME            # e.g. 5
+  days: REPLACE_ME                 # e.g. 30
+
+# Optional per-product overrides of the sending limits (all validated; the hard ceiling is 30/day unless OUTBOUND_HARD_CEILING is raised).
+autopilot:
+  daily_cap: 30                    # warm-up starts lower automatically: 10/day, 20/day after a week, then this
+  timezone: America/Chicago        # YOUR PROSPECTS' business timezone -- emails go out in their working hours
+  start_hour: 9
+  end_hour: 17
+  send_days: [0, 1, 2, 3, 4]       # Monday=0 ... Sunday=6

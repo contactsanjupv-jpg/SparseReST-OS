@@ -1,0 +1,26 @@
+[Unit]
+Description=SparseReST Company OS -- task worker (instantiate: sparserest-worker@1, @2, ...)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+User=sparserest
+WorkingDirectory=/opt/sparserest
+EnvironmentFile=/etc/sparserest/sparserest.env
+ExecStart=/opt/sparserest/.venv/bin/python -m scripts.run_worker
+Restart=always
+RestartSec=3
+TimeoutStopSec=60
+KillSignal=SIGTERM
+# Sandboxing
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
