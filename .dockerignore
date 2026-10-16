@@ -5,3 +5,7 @@
 apps/web/.next
 tests
 *.zip
+/secrets/
+/xflow_config.yaml
+.env.*
+!.env.example

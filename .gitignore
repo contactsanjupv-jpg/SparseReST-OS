@@ -32,3 +32,6 @@ out/
 # Python bytecode and caches
 __pycache__/
 *.py[cod]
+
+# Deployment secrets (docker-compose secrets: master key, DB passwords, DB URLs)
+/secrets/
